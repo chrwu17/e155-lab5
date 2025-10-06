@@ -4,9 +4,9 @@
 
 #include "../lib/main.h"
 
-int direction = 0;
-float deltaT = 1.0;
-float speed = 0.0;
+int direction;
+int deltaT;
+float speed;
 
 // Function used by printf to send characters to the laptop - Taken from E155 Website
 int _write(int file, char *ptr, int len) {
@@ -18,9 +18,6 @@ int _write(int file, char *ptr, int len) {
 }
 
 int main(void) {
-
-    configureFlash();
-    configureClock();
 
     // Enable A Signal Pin
     gpioEnable(GPIO_PORT_A);
