@@ -1,3 +1,4 @@
+
 // Christian Wu
 // chrwu@g.hmc.edu
 // 09/30/25
@@ -7,6 +8,8 @@
 int direction;
 int deltaT;
 float speed;
+int last_a_state;
+int last_b_state;
 
 // Function used by printf to send characters to the laptop - Taken from E155 Website
 int _write(int file, char *ptr, int len) {
@@ -18,6 +21,10 @@ int _write(int file, char *ptr, int len) {
 }
 
 int main(void) {
+    togglePin(PA8);
+    pinMode(PA8, GPIO_OUTPUT);
+    last_a_state = digitalRead(ASIGNAL_PIN);
+    last_b_state = digitalRead(BSIGNAL_PIN);
 
     // Enable A Signal Pin
     gpioEnable(GPIO_PORT_A);
@@ -38,7 +45,6 @@ int main(void) {
     // TODO
     // 1. Enable SYSCFG clock domain in RCC
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-
     // 2. Configure EXTICR for the input button interrupt
     SYSCFG->EXTICR[2] |= _VAL2FLD(SYSCFG_EXTICR3_EXTI9, 0b000);
     SYSCFG->EXTICR[1] |= _VAL2FLD(SYSCFG_EXTICR2_EXTI6, 0b000);
@@ -58,56 +64,52 @@ int main(void) {
     // 4. Turn on EXTI interrupt in NVIC_ISER
     NVIC->ISER[0] |= (1 << EXTI9_5_IRQn);
 
-    while(1){ 
-        if (direction) {
+    while(1) { 
+    togglePin(PA8);
+    int a_reading = digitalRead(ASIGNAL_PIN);
+    int b_reading = digitalRead(BSIGNAL_PIN);
+    
+    // Detect rising edge on A signal
+    if (a_reading && !last_a_state) {
+        deltaT = COUNTER_TIM->CNT;
+        
+        if((a_reading && b_reading) || (!a_reading && !b_reading)) {
+            direction = 0;
+        } else {
+            direction = 1;
+        }
+        
+        COUNTER_TIM->CNT = 0;
+    }
+    
+    // Detect rising edge on B signal
+    if (b_reading && !last_b_state) {
+        deltaT = COUNTER_TIM->CNT;
+        
+        if((a_reading && b_reading) || (!a_reading && !b_reading)) {
+            direction = 1;
+        } else {
+            direction = 0;
+        }
+        
+        COUNTER_TIM->CNT = 0;
+    }
+    
+    last_a_state = a_reading;
+    last_b_state = b_reading;
+    
+    if (deltaT > 0) {
+        speed = 1000000.0 / (408.0 * 4.0 * deltaT);
+    }
+    if (direction) {
             printf("Direction: Clockwise \n");
         } 
         else {
             printf("Direction: Counter Clockwise \n");
         }
-        if (deltaT == 0 || deltaT > 6000){
-          speed = 0;
-          } else {
-          speed = 1000000.0 / (408.0*4.0*deltaT);
-          }
-        printf("Speed: %f revolutions/second \n", speed);
-        delay_millis(DELAY_TIM, 200);
-    }
-
+    printf("Speed: %f revolutions/second \n", speed);
+    delay_millis(DELAY_TIM, 200);
+    
 }
-
-// Interrupt handler for PIN 6 and 9
-// Triggers on rising and falling edge of ASIGNAL_PIN and BSIGNAL_PIN
-// Changes values of global variables direction and deltaT
-void EXTI9_5_IRQHandler(void){
-    int a_reading = digitalRead(ASIGNAL_PIN);
-    int b_reading = digitalRead(BSIGNAL_PIN);
-    // Check that ASIGNAL_PIN was what triggered our interrupt
-    if (EXTI->PR1 & (1 << 9)){
-        // If so, clear the interrupt (NB: Write 1 to reset.)
-        EXTI->PR1 |= (1 << 9);
-
-        // If ASIGNAL_PIN and BSIGNAL_PIN are the same, return the difference between the two signals
-        if((a_reading && b_reading) || (!a_reading && !b_reading)) {
-            deltaT = COUNTER_TIM->CNT;
-            direction = 0;
-        }
-
-        COUNTER_TIM->CNT = 0;
-    }
-
-    // Check that BSIGNAL_PIN was what triggered our interrupt
-    if (EXTI->PR1 & (1 << 6)){
-        // If so, clear the interrupt (NB: Write 1 to reset.)
-        EXTI->PR1 |= (1 << 6);
-
-        // If ASIGNAL_PIN and BSIGNAL_PIN are the same, return the difference between the two signals
-        if((a_reading && b_reading) || (!a_reading && !b_reading)) {
-            deltaT = COUNTER_TIM->CNT;
-            direction = 1;
-        }
-
-        COUNTER_TIM->CNT = 0;
-    }
 
 }
